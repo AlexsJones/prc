@@ -6,6 +6,9 @@
 
 This program will convert recording rules into `PrometheusRule` type custom resource definitions
 
+
+`go get github.com/AlexsJones/prc`
+
 ![](resources/prc.gif)
 
 
