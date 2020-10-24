@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -34,61 +35,86 @@ var (
 	outputPath string
 )
 
+func generateRule(file string, b []byte) {
+	//Filename
+	extension := filepath.Ext(file)
+	file = file[0 : len(file)-len(extension)]
+	file = filepath.Base(file)
+	file = strings.Replace(file, "-", " ", -1)
+	// e.g foo bar
+	file = strings.Replace(file, "_", " ", -1)
+	// Remove any - or _ from the filename
+	file = strings.Title(strings.ToLower(file))
+	// Set to titlecase e.g "Foo Bar"
+	file = strings.Replace(file, " ", "", -1)
+	// Remove any spare white space e.g FooBar
+	var rule template.RecordingRule
+	err := yaml.Unmarshal(b, &rule)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create the prometheus rule
+	var prometheusRule template.PrometheusRule
+	prometheusRule.Spec.Groups = rule.Groups
+	prometheusRule.Metadata.Name = file
+	prometheusRule.APIVersion = "monitoring.coreos.com/v1"
+	prometheusRule.Kind = "PrometheusRule"
+
+	bytes, err := yaml.Marshal(prometheusRule)
+
+	outputP := "."
+	if outputPath != "" {
+		outputP = outputPath
+	}
+	if err := ioutil.WriteFile(path.Join(outputP, fmt.Sprintf("prometheusrule-%s.yaml", file)), bytes, 0644); err != nil {
+		log.Fatal(err)
+	}
+	color.Green("Created new PrometheusRule %s", path.Join(outputP, fmt.Sprintf("prometheusrule-%s.yaml", file)))
+}
+
+func loadFiles(inFiles []string) {
+	for _, file := range inFiles {
+		info, err := os.Stat(file)
+		if os.IsNotExist(err) {
+			log.Fatalf("File does not exist:%s", file)
+		}
+		if info.IsDir() {
+			log.Debugf("Searching %s", file)
+			files, err := ioutil.ReadDir(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+			flist := []string{}
+			for _, f := range files {
+				flist = append(flist, fmt.Sprintf("%s/%s", file, f.Name()))
+			}
+			loadFiles(flist)
+		} else {
+			b, err := ioutil.ReadFile(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+			generateRule(file, b)
+		}
+	}
+
+}
+
 // convertCmd represents the convert command
 var convertCmd = &cobra.Command{
 	Use:   "convert",
 	Short: "Convert from prometheus recording rules into PrometheusRules",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-
-		for _, file := range inputFiles {
-			b, err := ioutil.ReadFile(file)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			//Filename
-			extension := filepath.Ext(file)
-			file := file[0 : len(file)-len(extension)]
-			file = filepath.Base(file)
-			file = strings.Replace(file, "-", " ", -1)
-			// e.g foo bar
-			file = strings.Replace(file, "_", " ", -1)
-			// Remove any - or _ from the filename
-			file = strings.Title(strings.ToLower(file))
-			// Set to titlecase e.g "Foo Bar"
-			file = strings.Replace(file, " ", "", -1)
-			// Remove any spare white space e.g FooBar
-			var rule template.RecordingRule
-			err = yaml.Unmarshal(b, &rule)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			// Create the prometheus rule
-			var prometheusRule template.PrometheusRule
-			prometheusRule.Spec.Groups = rule.Groups
-			prometheusRule.Metadata.Name = file
-			prometheusRule.APIVersion = "monitoring.coreos.com/v1"
-			prometheusRule.Kind = "PrometheusRule"
-
-			bytes, err := yaml.Marshal(prometheusRule)
-
-			outputP := "."
-			if outputPath != "" {
-				outputP = outputPath
-			}
-			if err := ioutil.WriteFile(path.Join(outputP, fmt.Sprintf("prometheusrule-%s.yaml", file)), bytes, 0644); err != nil {
-				log.Fatal(err)
-			}
-			color.Green("Created new PrometheusRule %s", path.Join(outputP, fmt.Sprintf("prometheusrule-%s.yaml", file)))
-		}
+		loadFiles(inputFiles)
 	},
 }
 
 func init() {
 
-	convertCmd.Flags().StringArrayVarP(&inputFiles, "from-files", "f", []string{}, "Input prometheus recording rules file(s) e.g. --from-files=rule.yaml")
+	convertCmd.Flags().StringArrayVarP(&inputFiles, "from-files", "f", []string{}, `Input prometheus recording rules file(s) e.g. --from-files=rule.yaml.
+Also supports directory paths e.g. --from-files=./localrules/`)
 	convertCmd.Flags().StringVarP(&outputPath, "output-path", "o", "", "Output path for input files when converted into PrometheusRules e.g. --output-path=../")
 
 	err := convertCmd.MarkFlagRequired("from-files")

@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: ""
+    role: ""
+  name: OsRules
+spec:
+  groups:
+  - name: os-rules
+    rules:
+    - expr: process_open_fds / process_max_fds
+      record: instance:fd_utilization
+    - expr: predict_linear(instance:fd_utilization[1h], 3600 * 4) > 1
+      record: ""
+    - expr: predict_linear(instance:fd_utilization[10m], 3600) > 1
+      record: ""

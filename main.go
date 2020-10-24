@@ -15,8 +15,18 @@ limitations under the License.
 */
 package main
 
-import "github.com/AlexsJones/prc/cmd"
+import (
+	"os"
+
+	"github.com/AlexsJones/prc/cmd"
+	"github.com/sirupsen/logrus"
+)
 
 func main() {
+
+	if os.Getenv("DEBUG") != "" {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
 	cmd.Execute()
 }
