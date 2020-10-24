@@ -1,5 +1,7 @@
 # prc
 
+[![Maintainability](https://api.codeclimate.com/v1/badges/bd292a076938a298d370/maintainability)](https://codeclimate.com/github/AlexsJones/prc/maintainability)
+
 **Prometheus Rule Converter**
 
 This program will convert recording rules into `PrometheusRule` type custom resource definitions
